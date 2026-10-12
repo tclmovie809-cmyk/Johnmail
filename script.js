@@ -587,26 +587,21 @@ function openCallScreen(type) {
   playCallSound();
 
   // The video-call flow offers a Call button.
-  if (type === "video") {
-    $("#callStatus").textContent = "Ready to call";
+  
+if (type === "video") {
+  $("#callStatus").textContent = "Calling...";
 
-    const startButton = document.createElement("button");
-    startButton.id = "startVideoBtn";
-    startButton.type = "button";
-    startButton.className = "upload-button";
-    startButton.textContent = "Call";
+  $("#callMessage").textContent =
+    "Tumatawag... Hintayin ang video.";
 
-    startButton.addEventListener("click", () => {
-      startButton.remove();
-      connectCall();
-    });
+  // Simulan agad ang call flow.
+  connectCall();
 
-    $("#callMessage").before(startButton);
-  } else {
-    // Simulated audio call connects automatically.
-    connectCall();
-  }
+} else {
+  // Simulated audio call connects automatically.
+  connectCall();
 }
+
 
 function connectCall() {
   if (!state.callActive) return;
