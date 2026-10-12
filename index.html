@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#10051f">
+  <meta name="description" content="JX Messenger — Connect. Talk. Stay.">
+  <title>Messenger ni John Reynard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="jx-logo"><span>JX</span><i>♛</i></div>
+        <div class="brand-copy">
+          <h1>Messenger</h1>
+          <p>John Reynard <span class="crown">♛</span></p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="round-action" id="newChatBtn" aria-label="New message">✎</button>
+        <button class="round-action facebook-mark" id="profileBtn" aria-label="My profile">f</button>
+      </div>
+    </header>
+
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="searchInput" type="search" placeholder="Ask for John" autocomplete="off">
+      <button id="clearSearch" class="clear-search" aria-label="Clear search">✕</button>
+      <span class="sparkle">✦</span>
+    </div>
+
+    <section class="stories-section">
+      <div class="section-heading">
+        <span>Active friends</span>
+        <button id="seeAllStories">See all</button>
+      </div>
+      <div class="stories" id="storiesList"></div>
+    </section>
+
+    <main class="main-content">
+      <div class="list-heading">
+        <h2 id="listTitle">Messages</h2>
+        <button id="filterBtn" class="text-action">All chats⌄</button>
+      </div>
+      <div class="chat-list" id="chatList"></div>
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">⌕</div>
+        <h3>No friends found</h3>
+        <p>Try searching another name.</p>
+      </div>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-item active" data-tab="Chats">
+        <span class="nav-icon">●</span><span>Chats</span>
+        <i class="nav-badge" id="navUnread">3</i>
+      </button>
+      <button class="nav-item" data-tab="People">
+        <span class="nav-icon">♟</span><span>People</span>
+      </button>
+      <button class="nav-item" data-tab="Notifications">
+        <span class="nav-icon">♧</span><span>Notifications</span>
+        <i class="nav-dot"></i>
+      </button>
+      <button class="nav-item" data-tab="Menu">
+        <span class="nav-icon">☰</span><span>Menu</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Chat conversation -->
+  <section class="conversation-screen hidden" id="conversationScreen">
+    <header class="conversation-header">
+      <button class="back-btn" id="backBtn" aria-label="Back">‹</button>
+      <img id="conversationAvatar" class="avatar large" src="assets/jester.jpg" alt="Friend profile">
+      <div class="conversation-person">
+        <h2 id="conversationName">Jester Melendres</h2>
+        <p id="conversationStatus">Active now</p>
+      </div>
+      <button class="header-call" id="audioCallBtn" aria-label="Audio call">☎</button>
+      <button class="header-call" id="videoCallBtn" aria-label="Video call">▣</button>
+    </header>
+
+    <div class="conversation-body" id="conversationBody">
+      <div class="chat-date">TODAY</div>
+      <div class="history-card">
+        <span class="history-icon">☎</span>
+        <div><strong>Audio call</strong><p>20 mins</p></div>
+      </div>
+      <div class="message-row received">
+        <img class="avatar tiny" id="messageAvatar" src="assets/jester.jpg" alt="">
+        <div class="bubble">Hello</div>
+      </div>
+    </div>
+
+    <form class="message-composer" id="messageForm">
+      <button type="button" class="composer-extra" id="attachBtn" aria-label="Attach file">＋</button>
+      <input id="messageInput" type="text" placeholder="Aa" autocomplete="off" maxlength="1000">
+      <button type="button" class="composer-extra" id="emojiBtn" aria-label="Add emoji">☺</button>
+      <button class="send-btn" type="submit" aria-label="Send message">➤</button>
+    </form>
+  </section>
+
+  <!-- Call screen: remote video is a local recording; self preview uses device camera. -->
+  <section class="call-screen hidden" id="callScreen">
+    <video id="remoteVideo" class="remote-video" playsinline loop></video>
+    <div class="remote-placeholder" id="remotePlaceholder">
+      <img id="remoteAvatar" src="assets/jester.jpg" alt="">
+      <h2 id="remoteName">Jester Melendres</h2>
+      <p id="callStatus">Connecting…</p>
+    </div>
+    <div class="call-top">
+      <button id="minimizeCall" class="call-small-btn" aria-label="Minimize call">⌄</button>
+      <div><strong id="callName">Jester Melendres</strong><p id="callTimer">00:00</p></div>
+      <span class="call-secure">●</span>
+    </div>
+    <div class="self-camera">
+      <video id="selfVideo" autoplay muted playsinline></video>
+      <div id="cameraPlaceholder" class="camera-placeholder">Camera preview</div>
+    </div>
+    <div class="call-controls">
+      <button id="muteBtn" class="call-control"><span>♩</span><small>Mute</small></button>
+      <button id="speakerBtn" class="call-control"><span>◖))</span><small>Speaker</small></button>
+      <button id="cameraBtn" class="call-control"><span>▣</span><small>Camera</small></button>
+      <button id="endCallBtn" class="call-control end-call"><span>☎</span><small>End</small></button>
+    </div>
+    <p class="call-caption" id="callCaption">Video call</p>
+  </section>
+
+  <!-- Simple in-app panel -->
+  <section class="panel-screen hidden" id="panelScreen">
+    <header class="panel-header">
+      <button id="closePanel" class="back-btn">‹</button>
+      <h2 id="panelTitle">People</h2>
+    </header>
+    <div class="panel-content" id="panelContent"></div>
+  </section>
+
+  <div class="toast" id="toast" role="status"></div>
+  <input id="attachmentInput" type="file" hidden>
+
+  <script src="script.js"></script>
+</body>
+</html>
