@@ -1,129 +1,148 @@
 "use strict";
 
+/* =========================================
+   MESSENGER NI JOHN REYNARD
+   Personal demo — GitHub Pages compatible
+   ========================================= */
+
 const $ = (selector) => document.querySelector(selector);
 
 const friends = [
   {
     id: "xelamarie",
     name: "Xelamarie Roco",
-    photo: "assets/xelamarie.jpg",
+    image: "xelamarie.jpg",
+    pinned: true,
+    unread: 50,
     preview: "50 new messages",
     time: "Now",
-    unread: 50,
-    pinned: true,
-    online: true,
     initialMessages: []
   },
   {
     id: "jester",
     name: "Jester Melendres",
-    photo: "assets/jester.jpg",
-    preview: "Hello",
-    time: "Now",
-    unread: 0,
+    image: "jester.jpg",
     pinned: false,
-    online: false,
+    unread: 0,
+    preview: "Hello",
+    time: "20 mins ago",
     initialMessages: [
-      { type: "history", text: "Audio call", detail: "20 mins" },
-      { type: "received", text: "Hello", time: "8:12 PM" }
+      { type: "call", text: "Audio call", detail: "20 mins ago" },
+      { type: "text", text: "Hello", mine: false }
     ]
   },
   {
     id: "carl",
     name: "Carl JAMES",
-    photo: "assets/carl-james.jpg",
-    preview: "👍",
-    time: "Yesterday",
-    unread: 0,
+    image: "friends.jpg",
     pinned: false,
-    online: false,
+    unread: 0,
+    preview: "Tap to open conversation",
+    time: "",
     initialMessages: []
   },
   {
     id: "grade10",
     name: "Grade 10 Einstein",
-    photo: "assets/grade-10-einstein.jpg",
-    preview: "Group conversation",
-    time: "Yesterday",
-    unread: 0,
+    image: "friends.jpg",
     pinned: false,
-    online: true,
+    unread: 0,
+    preview: "Tap to open conversation",
+    time: "",
     initialMessages: []
   },
   {
     id: "bingkay",
     name: "Bingkay Rivera Miras",
-    photo: "assets/bingkay.jpg",
-    preview: "3 new messages",
-    time: "6:23 PM",
-    unread: 3,
+    image: "friends.jpg",
     pinned: false,
-    online: false,
+    unread: 0,
+    preview: "Tap to open conversation",
+    time: "",
     initialMessages: []
   },
   {
     id: "alynah",
     name: "Alynah Alcala",
-    photo: "assets/alynah.jpg",
-    preview: "Active conversation",
-    time: "Yesterday",
-    unread: 0,
+    image: "friends.jpg",
     pinned: false,
-    online: true,
+    unread: 0,
+    preview: "Tap to open conversation",
+    time: "",
     initialMessages: []
   },
   {
     id: "althea",
     name: "Althea Mae Cullamat",
-    photo: "assets/althea-mae.jpg",
-    preview: "Message",
-    time: "Yesterday",
-    unread: 0,
+    image: "friends.jpg",
     pinned: false,
-    online: false,
+    unread: 0,
+    preview: "Tap to open conversation",
+    time: "",
     initialMessages: []
   }
 ];
 
-let activeFriend = null;
-let activeTab = "Chats";
-let searchTerm = "";
-let callMode = "video";
-let callStartedAt = 0;
-let callInterval = null;
-let cameraStream = null;
-let micMuted = false;
-let cameraEnabled = true;
-let speakerEnabled = true;
-let remoteAudioContext = null;
-let toastTimeout = null;
+const state = {
+  currentFriend: null,
+  callType: "video",
+  callActive: false,
+  callConnected: false,
+  soundEnabled: true,
+  glowEnabled: true,
+  muted: false,
+  speakerEnabled: true,
+  cameraEnabled: false,
+  localStream: null,
+  callStartTime: 0,
+  callInterval: null,
+  introTimeout: null,
+  videoStarted: false,
+  messages: {},
+  toastTimeout: null
+};
 
-const conversationHistory = {};
-friends.forEach(friend => {
-  conversationHistory[friend.id] = [...friend.initialMessages];
-});
+/* ---------- SAFE MEDIA FALLBACK ---------- */
 
-const app = $(".app-shell");
-const conversationScreen = $("#conversationScreen");
-const callScreen = $("#callScreen");
-const panelScreen = $("#panelScreen");
-const remoteVideo = $("#remoteVideo");
-const selfVideo = $("#selfVideo");
-const attachmentInput = $("#attachmentInput");
+function fallbackImage(label) {
+  const initials = label
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(word => word[0])
+    .join("")
+    .toUpperCase();
 
-// Use placeholder initials when a picture has not been added yet.
-function prepareImages() {
-  document.querySelectorAll("img").forEach(img => {
-    img.addEventListener("error", () => {
-      if (img.dataset.fallbackApplied) return;
-      img.dataset.fallbackApplied = "true";
-      img.removeAttribute("src");
-      img.alt = img.alt || "Profile picture";
-      img.style.background =
-        "linear-gradient(145deg,#8535ce,#241035)";
-      img.style.objectFit = "contain";
-    });
-  });
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#9e48ed"/>
+          <stop offset="100%" stop-color="#18082b"/>
+        </linearGradient>
+      </defs>
+      <rect width="200" height="200" rx="100" fill="url(#g)"/>
+      <circle cx="100" cy="100" r="86"
+        fill="none" stroke="#e0a8ff" stroke-width="3"/>
+      <text x="100" y="119" text-anchor="middle"
+        font-family="sans-serif" font-size="58"
+        font-weight="bold" fill="#ffffff">${initials}</text>
+    </svg>`;
+
+  return "data:image/svg+xml;charset=UTF-8," +
+    encodeURIComponent(svg);
+}
+
+function setImage(image, filename, label) {
+  if (!image) return;
+
+  image.onerror = () => {
+    image.onerror = null;
+    image.src = fallbackImage(label);
+  };
+
+  image.src = filename;
+  image.alt = label;
 }
 
 function escapeHTML(value) {
@@ -132,601 +151,882 @@ function escapeHTML(value) {
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
-    "'": "&#39;"
+    "'": "&#039;"
   })[char]);
 }
 
+/* ---------- NOTIFICATIONS ---------- */
+
 function showToast(message) {
   const toast = $("#toast");
+  if (!toast) return;
+
   toast.textContent = message;
-  toast.classList.add("show");
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => {
-    toast.classList.remove("show");
-  }, 2400);
+  toast.classList.remove("hidden");
+
+  clearTimeout(state.toastTimeout);
+  state.toastTimeout = setTimeout(() => {
+    toast.classList.add("hidden");
+  }, 2600);
 }
 
-function currentTime() {
-  return new Date().toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit"
-  });
-}
+/* ---------- FRIEND LIST ---------- */
 
-function initials(name) {
-  return name.split(/\s+/).map(word => word[0]).slice(0, 2).join("");
-}
+function renderFriends(filter = "") {
+  const list = $("#friendsList");
+  if (!list) return;
 
-function avatarHTML(friend, extraClass = "") {
-  return `
-    <div class="chat-status">
-      <img class="avatar ${extraClass}"
-           src="${escapeHTML(friend.photo)}"
-           alt="${escapeHTML(friend.name)}"
-           loading="lazy">
-      ${friend.online ? '<span class="online-dot"></span>' : ""}
-    </div>`;
-}
-
-function renderStories() {
-  const stories = $("#storiesList");
-  stories.innerHTML = "";
-
-  friends.filter(friend => friend.online).forEach(friend => {
-    const button = document.createElement("button");
-    button.className = "story";
-    button.innerHTML = `
-      <div class="story-photo-wrap">
-        <img src="${escapeHTML(friend.photo)}"
-             alt="${escapeHTML(friend.name)}" loading="lazy">
-        <span class="online-dot"></span>
-      </div>
-      <span class="story-name">${escapeHTML(friend.name.split(" ")[0])}</span>
-    `;
-    button.addEventListener("click", () => openConversation(friend.id));
-    stories.appendChild(button);
-  });
-}
-
-function getPreview(friend) {
-  const messages = conversationHistory[friend.id] || [];
-  const last = messages[messages.length - 1];
-
-  if (!last) return friend.preview;
-  if (last.type === "history") return "Audio call · 20 mins";
-  if (last.type === "sent") return "You: " + last.text;
-  if (last.type === "received") return last.text;
-  if (last.type === "attachment") return "Attachment";
-  return friend.preview;
-}
-
-function renderChats() {
-  const list = $("#chatList");
-  list.innerHTML = "";
+  const query = filter.trim().toLowerCase();
 
   const filtered = friends.filter(friend =>
-    friend.name.toLowerCase().includes(searchTerm.toLowerCase())
+    friend.name.toLowerCase().includes(query)
   );
 
-  filtered.sort((a, b) => Number(b.pinned) - Number(a.pinned));
+  filtered.sort((a, b) =>
+    Number(b.pinned) - Number(a.pinned)
+  );
+
+  list.innerHTML = "";
 
   filtered.forEach(friend => {
-    const item = document.createElement("button");
-    item.className = "chat-item";
-    item.setAttribute("aria-label", "Open chat with " + friend.name);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className =
+      "friend-row" + (friend.pinned ? " pinned" : "");
 
-    const unread = friend.unread > 0
-      ? `<span class="unread-count">${
-          friend.unread > 99 ? "99+" : friend.unread
-        }</span>`
-      : "";
+    row.innerHTML = `
+      <div class="avatar-wrap">
+        <img class="avatar"
+          src="${escapeHTML(friend.image)}"
+          alt="${escapeHTML(friend.name)}">
+        ${friend.id === "jester"
+          ? '<span class="online-dot"></span>'
+          : ""}
+      </div>
 
-    item.innerHTML = `
-      ${avatarHTML(friend)}
-      <div class="chat-info">
-        <div class="chat-name-row">
-          <h3 class="chat-name">${escapeHTML(friend.name)}
-            ${friend.pinned ? '<span class="pin">✦</span>' : ""}
-          </h3>
-          <span class="chat-time">${escapeHTML(friend.time)}</span>
-        </div>
-        <div class="chat-preview-row">
-          <p class="chat-preview ${friend.unread ? "unread" : ""}">
-            ${escapeHTML(getPreview(friend))}
-          </p>
-          ${unread}
-        </div>
-      </div>`;
+      <div class="friend-info">
+        <span class="friend-name">
+          ${escapeHTML(friend.name)}
+          ${friend.pinned
+            ? '<span class="pin-mark">◆ PINNED</span>'
+            : ""}
+        </span>
+        <span class="friend-preview">
+          ${escapeHTML(friend.preview)}
+        </span>
+      </div>
 
-    item.addEventListener("click", () => openConversation(friend.id));
-    list.appendChild(item);
+      <div class="friend-meta">
+        <span class="friend-time">
+          ${escapeHTML(friend.time)}
+        </span>
+        ${friend.unread > 0
+          ? `<span class="unread-badge">
+              ${friend.unread} new messages
+            </span>`
+          : ""}
+      </div>
+    `;
+
+    const img = row.querySelector("img");
+    img.onerror = () => {
+      img.onerror = null;
+      img.src = fallbackImage(friend.name);
+    };
+
+    row.addEventListener("click", () => openConversation(friend.id));
+    list.appendChild(row);
   });
 
-  $("#emptyState").classList.toggle("hidden", filtered.length > 0);
-  $("#chatList").classList.toggle("hidden", filtered.length === 0);
-  prepareImages();
+  $("#emptySearch")?.classList.toggle(
+    "hidden",
+    filtered.length !== 0
+  );
 }
 
-function openConversation(id) {
-  const friend = friends.find(item => item.id === id);
-  if (!friend) return;
+/* ---------- STORIES ---------- */
 
-  activeFriend = friend;
+function renderStories() {
+  const container = $("#storiesRow");
+  if (!container) return;
+
+  const stories = [
+    { name: "Your story", image: "john.jpg", id: "john" },
+    { name: "Xelamarie", image: "xelamarie.jpg", id: "xelamarie" },
+    { name: "Jester", image: "jester.jpg", id: "jester" },
+    { name: "Carl JAMES", image: "friends.jpg", id: "carl" },
+    { name: "Althea Mae", image: "friends.jpg", id: "althea" }
+  ];
+
+  container.innerHTML = "";
+
+  stories.forEach(story => {
+    const button = document.createElement("button");
+    button.className = "story";
+    button.type = "button";
+
+    button.innerHTML = `
+      <span class="story-picture">
+        <img src="${escapeHTML(story.image)}"
+             alt="${escapeHTML(story.name)}">
+        ${story.id === "john"
+          ? '<span class="online-dot"></span>'
+          : ""}
+      </span>
+      <span class="story-name">${escapeHTML(story.name)}</span>
+    `;
+
+    const img = button.querySelector("img");
+    img.onerror = () => {
+      img.onerror = null;
+      img.src = fallbackImage(story.name);
+    };
+
+    button.addEventListener("click", () => {
+      if (story.id === "john") {
+        showScreen("profileScreen");
+      } else {
+        openConversation(story.id);
+      }
+    });
+
+    container.appendChild(button);
+  });
+}
+
+/* ---------- NAVIGATION ---------- */
+
+function showScreen(screenId) {
+  if (state.currentFriend &&
+      screenId !== "conversationScreen" &&
+      state.callActive) {
+    // A call stays open while navigating the app.
+  }
+
+  document.querySelectorAll(".screen").forEach(screen => {
+    screen.classList.toggle("active", screen.id === screenId);
+  });
+
+  document.querySelectorAll(".nav-item").forEach(button => {
+    button.classList.toggle(
+      "selected",
+      button.dataset.screen === screenId
+    );
+  });
+
+  $("#bottomNav")?.classList.toggle(
+    "hidden",
+    screenId === "conversationScreen" ||
+    screenId === "profileScreen"
+  );
+
+  if (screenId === "peopleScreen") renderPeople();
+}
+
+function renderPeople() {
+  const container = $("#peopleList");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  friends.forEach(friend => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "menu-item";
+    button.textContent = "◉ " + friend.name;
+    button.addEventListener("click", () => {
+      openConversation(friend.id);
+    });
+    container.appendChild(button);
+  });
+}
+
+function openConversation(friendId) {
+  const friend = friends.find(item => item.id === friendId);
+
+  if (!friend) {
+    showToast("Hindi makita ang conversation.");
+    return;
+  }
+
+  state.currentFriend = friend;
   friend.unread = 0;
 
   $("#conversationName").textContent = friend.name;
-  $("#conversationAvatar").src = friend.photo;
-  $("#messageAvatar").src = friend.photo;
   $("#conversationStatus").textContent =
-    friend.online ? "Active now" : "Messenger";
-  $("#conversationStatus").style.color =
-    friend.online ? "#55e991" : "#bca8d2";
+    friend.id === "jester"
+      ? "Messenger friend"
+      : "Conversation";
 
-  renderConversation();
-  app.classList.add("hidden");
-  conversationScreen.classList.remove("hidden");
-  panelScreen.classList.add("hidden");
-  $("#messageInput").focus();
-  renderChats();
+  setImage(
+    $("#conversationAvatar"),
+    friend.image,
+    friend.name
+  );
+
+  if (!state.messages[friend.id]) {
+    state.messages[friend.id] =
+      friend.initialMessages.map(message => ({ ...message }));
+  }
+
+  showScreen("conversationScreen");
+  renderMessages();
+  renderFriends($("#searchInput").value);
+
+  if (friend.id === "jester") {
+    $("#videoCallBtn").classList.remove("hidden");
+    $("#audioCallBtn").classList.remove("hidden");
+  }
 }
 
-function renderConversation() {
-  if (!activeFriend) return;
+/* ---------- MESSAGES ---------- */
 
-  const body = $("#conversationBody");
-  body.innerHTML = '<div class="chat-date">TODAY</div>';
+function renderMessages() {
+  const container = $("#chatMessages");
+  const friend = state.currentFriend;
 
-  const messages = conversationHistory[activeFriend.id] || [];
+  if (!container || !friend) return;
 
-  if (messages.length === 0) {
-    const welcome = document.createElement("p");
-    welcome.style.cssText =
-      "text-align:center;color:#a994bc;font-size:13px;margin:auto 0;";
-    welcome.textContent = "Start a conversation";
-    body.appendChild(welcome);
-  }
+  const messages = state.messages[friend.id] || [];
+
+  container.innerHTML = `
+    <div class="chat-date">Messenger · Personal demo</div>
+  `;
 
   messages.forEach(message => {
-    if (message.type === "history") {
-      const card = document.createElement("div");
-      card.className = "history-card";
-      card.innerHTML = `
-        <span class="history-icon">☎</span>
-        <div><strong>${escapeHTML(message.text)}</strong>
-        <p>${escapeHTML(message.detail || "")}</p></div>`;
-      body.appendChild(card);
-      return;
-    }
-
     const row = document.createElement("div");
-    row.className = "message-row " +
-      (message.type === "sent" ? "sent" : "received");
 
-    if (message.type !== "sent") {
-      const img = document.createElement("img");
-      img.className = "avatar tiny";
-      img.src = activeFriend.photo;
-      img.alt = "";
-      row.appendChild(img);
-    }
-
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.textContent = message.text || "";
-
-    if (message.type === "attachment") {
-      bubble.textContent = "📎 " + (message.text || "Attachment");
-    }
-
-    row.appendChild(bubble);
-
-    if (message.time) {
-      const time = document.createElement("span");
-      time.className = "message-time";
-      time.textContent = message.time;
-      row.appendChild(time);
-    }
-
-    body.appendChild(row);
-  });
-
-  body.scrollTop = body.scrollHeight;
-  prepareImages();
-}
-
-function sendMessage(text) {
-  if (!activeFriend || !text.trim()) return;
-
-  conversationHistory[activeFriend.id].push({
-    type: "sent",
-    text: text.trim(),
-    time: currentTime()
-  });
-
-  activeFriend.preview = text.trim();
-  activeFriend.time = currentTime();
-  renderConversation();
-  renderChats();
-}
-
-$("#messageForm").addEventListener("submit", event => {
-  event.preventDefault();
-  const input = $("#messageInput");
-  sendMessage(input.value);
-  input.value = "";
-});
-
-$("#searchInput").addEventListener("input", event => {
-  searchTerm = event.target.value.trim();
-  $("#clearSearch").style.display = searchTerm ? "block" : "none";
-  renderChats();
-});
-
-$("#clearSearch").addEventListener("click", () => {
-  $("#searchInput").value = "";
-  searchTerm = "";
-  $("#clearSearch").style.display = "none";
-  renderChats();
-  $("#searchInput").focus();
-});
-
-$("#backBtn").addEventListener("click", () => {
-  conversationScreen.classList.add("hidden");
-  app.classList.remove("hidden");
-  activeFriend = null;
-  renderChats();
-});
-
-$("#newChatBtn").addEventListener("click", () => {
-  $("#searchInput").focus();
-  showToast("Search for a friend to start chatting.");
-});
-
-$("#profileBtn").addEventListener("click", () => {
-  openPanel("My profile", `
-    <div class="panel-row">
-      <div class="jx-logo"><span>JX</span></div>
-      <div><strong>John Reynard</strong><p>Messenger profile</p></div>
-    </div>
-    <p class="muted-copy">Your profile and preferences.</p>
-    <button class="settings-button" id="profileInfoBtn">Profile information</button>
-  `);
-  $("#profileInfoBtn")?.addEventListener("click", () => {
-    showToast("John Reynard");
-  });
-});
-
-$("#seeAllStories").addEventListener("click", () => {
-  openPanel("Active friends", friends.filter(f => f.online).map(friend => `
-    <div class="panel-row">
-      <img class="avatar" src="${escapeHTML(friend.photo)}" alt="">
-      <div><strong>${escapeHTML(friend.name)}</strong><p>Active now</p></div>
-    </div>`).join("") || "<p>No active friends.</p>");
-});
-
-$("#filterBtn").addEventListener("click", () => {
-  openPanel("Chat options", `
-    <button class="settings-button" id="showAllChats">All chats</button>
-    <button class="settings-button" id="showPinnedChats">Pinned chats</button>
-    <button class="settings-button" id="showUnreadChats">Unread chats</button>
-  `);
-
-  $("#showAllChats")?.addEventListener("click", () => {
-    closePanel();
-    showToast("Showing all chats");
-  });
-
-  $("#showPinnedChats")?.addEventListener("click", () => {
-    closePanel();
-    searchTerm = "";
-    $("#searchInput").value = "";
-    $("#listTitle").textContent = "Pinned chats";
-    $("#chatList").innerHTML = "";
-    friends.filter(f => f.pinned).forEach(friend => {
-      const button = document.createElement("button");
-      button.className = "chat-item";
-      button.innerHTML = avatarHTML(friend) +
-        `<div class="chat-info"><h3 class="chat-name">${escapeHTML(friend.name)}</h3><p class="chat-preview">${escapeHTML(getPreview(friend))}</p></div>`;
-      button.addEventListener("click", () => openConversation(friend.id));
-      $("#chatList").appendChild(button);
-    });
-  });
-
-  $("#showUnreadChats")?.addEventListener("click", () => {
-    closePanel();
-    $("#listTitle").textContent = "Unread chats";
-    $("#chatList").innerHTML = "";
-    friends.filter(f => f.unread > 0).forEach(friend => {
-      const button = document.createElement("button");
-      button.className = "chat-item";
-      button.innerHTML = avatarHTML(friend) +
-        `<div class="chat-info"><h3 class="chat-name">${escapeHTML(friend.name)}</h3><p class="chat-preview unread">${escapeHTML(getPreview(friend))}</p></div>`;
-      button.addEventListener("click", () => openConversation(friend.id));
-      $("#chatList").appendChild(button);
-    });
-  });
-});
-
-document.querySelectorAll(".nav-item").forEach(button => {
-  button.addEventListener("click", () => {
-    activeTab = button.dataset.tab;
-    document.querySelectorAll(".nav-item").forEach(item =>
-      item.classList.toggle("active", item === button)
-    );
-
-    if (activeTab === "Chats") {
-      closePanel();
-      app.classList.remove("hidden");
-      conversationScreen.classList.add("hidden");
-      $("#listTitle").textContent = "Messages";
-      renderChats();
-      return;
-    }
-
-    if (activeTab === "People") {
-      openPanel("People", friends.map(friend => `
-        <button class="panel-row person-row" data-person="${friend.id}"
-                style="width:100%;text-align:left;background:transparent;color:inherit;border:0">
-          <img class="avatar" src="${escapeHTML(friend.photo)}" alt="">
-          <div><strong>${escapeHTML(friend.name)}</strong>
-          <p>${friend.online ? "Active now" : "Messenger"}</p></div>
-        </button>`).join(""));
-      $("#panelContent").querySelectorAll("[data-person]").forEach(row =>
-        row.addEventListener("click", () => openConversation(row.dataset.person))
-      );
-    } else if (activeTab === "Notifications") {
-      openPanel("Notifications", `
-        <div class="panel-row"><div><strong>Messages</strong><p>Your chat list is ready.</p></div></div>
-        <div class="panel-row"><div><strong>Unread messages</strong><p>Check your conversations.</p></div></div>
-      `);
+    if (message.type === "call") {
+      row.className = "call-history";
+      row.innerHTML = `
+        <div class="call-history-icon">☎</div>
+        <div>
+          <strong>${escapeHTML(message.text)}</strong>
+          <small>${escapeHTML(message.detail || "")}</small>
+        </div>
+      `;
     } else {
-      openPanel("Menu", `
-        <div class="panel-row"><div><strong>John Reynard</strong><p>Messenger settings</p></div></div>
-        <button class="settings-button" id="menuPeople">People</button>
-        <button class="settings-button" id="menuTheme">Purple theme</button>
-        <button class="settings-button" id="menuAbout">About JX Messenger</button>
-      `);
-      $("#menuPeople")?.addEventListener("click", () => {
-        document.querySelector('[data-tab="People"]').click();
-      });
-      $("#menuTheme")?.addEventListener("click", () => showToast("Purple theme is active."));
-      $("#menuAbout")?.addEventListener("click", () => {
-        openPanel("About JX Messenger", "<p>JX Messenger · John Reynard</p><p>Connect. Talk. Stay.</p>");
-      });
+      row.className =
+        "message-row" + (message.mine ? " mine" : "");
+
+      row.innerHTML = `
+        ${message.mine ? "" : `
+          <img class="message-mini-avatar"
+               src="${escapeHTML(friend.image)}"
+               alt="">
+        `}
+        <div class="message-bubble">
+          ${escapeHTML(message.text)}
+        </div>
+      `;
+
+      if (!message.mine) {
+        const img = row.querySelector("img");
+        img.onerror = () => {
+          img.onerror = null;
+          img.src = fallbackImage(friend.name);
+        };
+      }
     }
+
+    container.appendChild(row);
   });
-});
 
-function openPanel(title, content) {
-  $("#panelTitle").textContent = title;
-  $("#panelContent").innerHTML = content;
-  app.classList.add("hidden");
-  conversationScreen.classList.add("hidden");
-  panelScreen.classList.remove("hidden");
+  container.scrollTop = container.scrollHeight;
 }
 
-function closePanel() {
-  panelScreen.classList.add("hidden");
-  app.classList.remove("hidden");
-}
+function sendMessage(event) {
+  event.preventDefault();
 
-$("#closePanel").addEventListener("click", closePanel);
+  const input = $("#messageInput");
+  const text = input.value.trim();
 
-$("#attachBtn").addEventListener("click", () => attachmentInput.click());
+  if (!text) return;
 
-attachmentInput.addEventListener("change", () => {
-  const file = attachmentInput.files && attachmentInput.files[0];
-  if (!file || !activeFriend) return;
-
-  conversationHistory[activeFriend.id].push({
-    type: "attachment",
-    text: file.name,
-    time: currentTime()
-  });
-  renderConversation();
-  renderChats();
-  attachmentInput.value = "";
-});
-
-$("#emojiBtn").addEventListener("click", () => {
-  $("#messageInput").value += " 😊";
-  $("#messageInput").focus();
-});
-
-// -------------------- CALL INTERFACE --------------------
-
-$("#audioCallBtn").addEventListener("click", () => startCall("audio"));
-$("#videoCallBtn").addEventListener("click", () => startCall("video"));
-
-async function startCall(mode) {
-  if (!activeFriend) return;
-
-  callMode = mode;
-  callStartedAt = Date.now();
-  micMuted = false;
-  cameraEnabled = mode === "video";
-  speakerEnabled = true;
-
-  $("#callName").textContent = activeFriend.name;
-  $("#remoteName").textContent = activeFriend.name;
-  $("#remoteAvatar").src = activeFriend.photo;
-  $("#callCaption").textContent = mode === "video" ? "Video call" : "Audio call";
-  $("#callTimer").textContent = "00:00";
-  $("#callStatus").textContent = "Call in progress";
-  $("#cameraBtn").classList.toggle("toggled", !cameraEnabled);
-  $("#muteBtn").classList.remove("toggled");
-  $("#speakerBtn").classList.remove("toggled");
-
-  conversationScreen.classList.add("hidden");
-  callScreen.classList.remove("hidden");
-
-  if (mode === "video") {
-    await enableCamera();
-    await playRemoteVideo();
-  } else {
-    stopCamera();
-    remoteVideo.pause();
-    remoteVideo.classList.add("hidden");
-    $("#remotePlaceholder").classList.remove("hidden");
-    $("#cameraPlaceholder").classList.remove("hidden");
-    selfVideo.classList.add("hidden");
-  }
-
-  clearInterval(callInterval);
-  callInterval = setInterval(updateCallTimer, 1000);
-}
-
-async function enableCamera() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    $("#cameraPlaceholder").textContent =
-      "Camera needs HTTPS and browser permission.";
-    $("#cameraPlaceholder").classList.remove("hidden");
+  if (!state.currentFriend) {
+    showToast("Pumili muna ng friend.");
     return;
   }
 
-  try {
-    stopCamera();
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" },
-      audio: false
-    });
+  const friend = state.currentFriend;
 
-    selfVideo.srcObject = cameraStream;
-    selfVideo.classList.remove("hidden");
-    $("#cameraPlaceholder").classList.add("hidden");
-    cameraEnabled = true;
-  } catch (error) {
-    $("#cameraPlaceholder").textContent =
-      "Allow camera access in your browser settings.";
-    $("#cameraPlaceholder").classList.remove("hidden");
-    selfVideo.classList.add("hidden");
-    showToast("Camera permission was not granted.");
+  state.messages[friend.id].push({
+    type: "text",
+    text,
+    mine: true
+  });
+
+  friend.preview = text;
+  friend.time = "Now";
+
+  input.value = "";
+  renderMessages();
+  renderFriends($("#searchInput").value);
+}
+
+function addCallHistory(friend, type) {
+  if (!state.messages[friend.id]) {
+    state.messages[friend.id] = [];
+  }
+
+  state.messages[friend.id].push({
+    type: "call",
+    text: type === "video" ? "Video call" : "Audio call",
+    detail: "Just now"
+  });
+
+  friend.preview = type === "video"
+    ? "Video call"
+    : "Audio call";
+
+  friend.time = "Now";
+
+  renderMessages();
+  renderFriends($("#searchInput").value);
+}
+
+/* ---------- SOUND ---------- */
+
+function playCallSound() {
+  if (!state.soundEnabled) return;
+
+  const audio = $("#callAudio");
+  if (!audio) return;
+
+  audio.currentTime = 0;
+  audio.volume = state.speakerEnabled ? 1 : 0.25;
+
+  const promise = audio.play();
+
+  if (promise && typeof promise.catch === "function") {
+    promise.catch(() => {
+      showToast("Hindi ma-play ang sound. Suriin ang call-sound.mp3.");
+    });
   }
 }
 
-async function playRemoteVideo() {
-  remoteVideo.pause();
-  remoteVideo.removeAttribute("src");
-  remoteVideo.load();
+function stopCallSound() {
+  const audio = $("#callAudio");
+  if (!audio) return;
 
-  // Add your own recording at assets/jester-video.mp4.
-  remoteVideo.src = "assets/jester-video.mp4";
-  remoteVideo.classList.remove("hidden");
-  $("#remotePlaceholder").classList.remove("hidden");
-
-  remoteVideo.onloadeddata = () => {
-    $("#remotePlaceholder").classList.add("hidden");
-    remoteVideo.play().catch(() => {
-      $("#remotePlaceholder").classList.remove("hidden");
-    });
-  };
-
-  remoteVideo.onerror = () => {
-    remoteVideo.classList.add("hidden");
-    $("#remotePlaceholder").classList.remove("hidden");
-    $("#callStatus").textContent = "Video unavailable";
-  };
-
-  try {
-    await remoteVideo.play();
-  } catch (_) {
-    // The browser may require another tap before video playback.
-  }
+  audio.pause();
+  audio.currentTime = 0;
 }
 
-function stopCamera() {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-    cameraStream = null;
-  }
-  selfVideo.srcObject = null;
+/* ---------- CALL SCREEN ---------- */
+
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+
+  return String(mins).padStart(2, "0") + ":" +
+         String(secs).padStart(2, "0");
 }
 
 function updateCallTimer() {
-  if (!callStartedAt) return;
-  const seconds = Math.floor((Date.now() - callStartedAt) / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  $("#callTimer").textContent =
-    String(minutes).padStart(2, "0") + ":" +
-    String(remainder).padStart(2, "0");
+  if (!state.callActive || !state.callStartTime) return;
+
+  const seconds = Math.floor(
+    (Date.now() - state.callStartTime) / 1000
+  );
+
+  $("#callTimer").textContent = formatTime(seconds);
 }
 
-$("#muteBtn").addEventListener("click", () => {
-  micMuted = !micMuted;
-  $("#muteBtn").classList.toggle("toggled", micMuted);
-  $("#muteBtn").querySelector("small").textContent =
-    micMuted ? "Unmute" : "Mute";
+function openCallScreen(type) {
+  const friend = state.currentFriend;
 
-  // This prototype does not transmit microphone audio.
-  showToast(micMuted ? "Microphone muted" : "Microphone unmuted");
-});
-
-$("#speakerBtn").addEventListener("click", () => {
-  speakerEnabled = !speakerEnabled;
-  $("#speakerBtn").classList.toggle("toggled", !speakerEnabled);
-  $("#speakerBtn").querySelector("small").textContent =
-    speakerEnabled ? "Speaker" : "Quiet";
-
-  // Adjust recorded-video playback volume, not phone routing.
-  remoteVideo.muted = !speakerEnabled;
-});
-
-$("#cameraBtn").addEventListener("click", async () => {
-  if (callMode !== "video") {
-    showToast("Camera is available during video calls.");
+  if (!friend) {
+    showToast("Pumili muna ng friend.");
     return;
   }
 
-  if (cameraEnabled) {
-    stopCamera();
-    cameraEnabled = false;
-    selfVideo.classList.add("hidden");
-    $("#cameraPlaceholder").textContent = "Camera off";
-    $("#cameraPlaceholder").classList.remove("hidden");
-  } else {
-    await enableCamera();
+  if (state.callActive) {
+    showToast("May kasalukuyang call na.");
+    return;
   }
 
-  $("#cameraBtn").classList.toggle("toggled", !cameraEnabled);
-});
+  state.callType = type;
+  state.callActive = true;
+  state.callConnected = false;
+  state.videoStarted = false;
+  state.muted = false;
+  state.cameraEnabled = false;
+  state.callStartTime = Date.now();
 
-$("#endCallBtn").addEventListener("click", endCall);
-$("#minimizeCall").addEventListener("click", endCall);
+  $("#callScreen").classList.remove("hidden");
+  $("#callPersonName").textContent = friend.name;
+  $("#callStatus").textContent = "Calling...";
+  $("#callTimer").textContent = "00:00";
+
+  setImage($("#callAvatar"), friend.image, friend.name);
+
+  $("#videoStage").classList.add("hidden");
+  $("#callAvatarWrap").classList.remove("hidden");
+  $("#videoPlaceholder").classList.remove("hidden");
+  $("#remoteVideo").classList.add("hidden");
+  $("#callMessage").textContent =
+    type === "video"
+      ? "Simulated video call · Waiting to connect"
+      : "Simulated audio call";
+
+  const oldStartButton = $("#startVideoBtn");
+  if (oldStartButton) oldStartButton.remove();
+
+  $("#videoToggleBtn").classList.toggle(
+    "hidden",
+    type !== "video"
+  );
+
+  // A call can be ended at any point.
+  clearInterval(state.callInterval);
+  state.callInterval = setInterval(updateCallTimer, 1000);
+  updateCallTimer();
+
+  // Sound starts immediately after the user taps the call button.
+  playCallSound();
+
+  // The video-call flow offers a Call button.
+  if (type === "video") {
+    $("#callStatus").textContent = "Ready to call";
+
+    const startButton = document.createElement("button");
+    startButton.id = "startVideoBtn";
+    startButton.type = "button";
+    startButton.className = "upload-button";
+    startButton.textContent = "Call";
+
+    startButton.addEventListener("click", () => {
+      startButton.remove();
+      connectCall();
+    });
+
+    $("#callMessage").before(startButton);
+  } else {
+    // Simulated audio call connects automatically.
+    connectCall();
+  }
+}
+
+function connectCall() {
+  if (!state.callActive) return;
+
+  state.callConnected = true;
+  state.callStartTime = Date.now();
+
+  $("#callStatus").textContent = "Connected · Simulation";
+  $("#callMessage").textContent =
+    "Simulated call in progress";
+
+  if (state.callType === "video") {
+    // Start video after 18 seconds of the intro.
+    state.introTimeout = setTimeout(() => {
+      if (!state.callActive) return;
+      startRemoteVideo();
+    }, 18000);
+
+    // Camera can start immediately after the user's gesture.
+    // This is a real local preview, not a remote connection.
+    startLocalCamera();
+  } else {
+    $("#callAvatarWrap").classList.remove("hidden");
+  }
+
+  stopCallSound();
+  addCallHistory(state.currentFriend, state.callType);
+}
+
+function startRemoteVideo() {
+  if (!state.callActive || state.callType !== "video") return;
+
+  const video = $("#remoteVideo");
+  const stage = $("#videoStage");
+
+  stage.classList.remove("hidden");
+  $("#callAvatarWrap").classList.add("hidden");
+
+  video.src = "jester-video.mp4";
+  video.classList.remove("hidden");
+  video.muted = !state.speakerEnabled;
+  video.loop = true;
+  video.playsInline = true;
+
+  $("#videoPlaceholder").classList.remove("hidden");
+  $("#callMessage").textContent =
+    "Playing recorded video · Not a real call";
+
+  state.videoStarted = true;
+
+  const playPromise = video.play();
+
+  if (playPromise && typeof playPromise.then === "function") {
+    playPromise.then(() => {
+      $("#videoPlaceholder").classList.add("hidden");
+    }).catch(() => {
+      $("#videoPlaceholder").classList.remove("hidden");
+      showToast("Hindi ma-play ang video. Suriin ang jester-video.mp4.");
+    });
+  }
+
+  $("#videoToggleBtn").classList.add("is-active");
+}
+
+async function startLocalCamera() {
+  if (!navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia) {
+    $("#cameraPlaceholder").classList.remove("hidden");
+    showToast("Hindi available ang camera. Gumamit ng HTTPS browser.");
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "user"
+      },
+      audio: false
+    });
+
+    if (!state.callActive) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+
+    state.localStream = stream;
+
+    const camera = $("#localCamera");
+    camera.srcObject = stream;
+
+    $("#cameraPlaceholder").classList.add("hidden");
+    camera.classList.remove("hidden");
+
+    state.cameraEnabled = true;
+    $("#cameraToggleBtn").textContent = "⌖";
+  } catch (error) {
+    $("#cameraPlaceholder").classList.remove("hidden");
+    showToast("Hindi nabuksan ang camera. Payagan ang camera permission.");
+  }
+}
+
+function toggleCamera() {
+  if (!state.localStream) {
+    startLocalCamera();
+    return;
+  }
+
+  state.cameraEnabled = !state.cameraEnabled;
+
+  state.localStream.getVideoTracks().forEach(track => {
+    track.enabled = state.cameraEnabled;
+  });
+
+  $("#localCamera").classList.toggle(
+    "hidden",
+    !state.cameraEnabled
+  );
+
+  $("#cameraPlaceholder").classList.toggle(
+    "hidden",
+    state.cameraEnabled
+  );
+
+  $("#cameraToggleBtn").textContent =
+    state.cameraEnabled ? "⌖" : "◉";
+}
+
+function toggleMute() {
+  state.muted = !state.muted;
+
+  $("#muteBtn").classList.toggle("is-active", state.muted);
+  $("#muteBtn").querySelector("small").textContent =
+    state.muted ? "Unmute" : "Mute";
+
+  // There is no remote caller in this simulation.
+  // This controls the local camera stream only if audio tracks exist.
+  if (state.localStream) {
+    state.localStream.getAudioTracks().forEach(track => {
+      track.enabled = !state.muted;
+    });
+  }
+
+  showToast(state.muted ? "Mute on" : "Mute off");
+}
+
+function toggleSpeaker() {
+  state.speakerEnabled = !state.speakerEnabled;
+
+  $("#speakerBtn").textContent =
+    state.speakerEnabled ? "🔊" : "🔈";
+
+  $("#speakerControlBtn").classList.toggle(
+    "is-active",
+    !state.speakerEnabled
+  );
+
+  const video = $("#remoteVideo");
+  video.muted = !state.speakerEnabled;
+
+  const audio = $("#callAudio");
+  audio.volume = state.speakerEnabled ? 1 : 0.25;
+
+  showToast(
+    state.speakerEnabled
+      ? "Speaker enabled"
+      : "Speaker volume lowered"
+  );
+}
+
+function toggleRemoteVideo() {
+  const video = $("#remoteVideo");
+
+  if (!state.videoStarted) {
+    showToast("Hintayin ang 18-second intro.");
+    return;
+  }
+
+  if (video.paused) {
+    video.play().catch(() => {
+      showToast("Hindi ma-play ang video.");
+    });
+
+    $("#videoToggleBtn").querySelector("small").textContent =
+      "Pause";
+  } else {
+    video.pause();
+
+    $("#videoToggleBtn").querySelector("small").textContent =
+      "Play";
+  }
+}
 
 function endCall() {
-  const elapsed = callStartedAt
-    ? Math.max(1, Math.floor((Date.now() - callStartedAt) / 1000))
-    : 0;
-  const minutes = Math.floor(elapsed / 60);
-  const seconds = elapsed % 60;
+  state.callActive = false;
+  state.callConnected = false;
+  state.videoStarted = false;
 
-  clearInterval(callInterval);
-  callInterval = null;
-  stopCamera();
-  remoteVideo.pause();
-  remoteVideo.removeAttribute("src");
-  remoteVideo.load();
+  clearInterval(state.callInterval);
+  clearTimeout(state.introTimeout);
 
-  callScreen.classList.add("hidden");
-  conversationScreen.classList.remove("hidden");
+  state.callInterval = null;
+  state.introTimeout = null;
 
-  if (activeFriend) {
-    conversationHistory[activeFriend.id].push({
-      type: "history",
-      text: callMode === "video" ? "Video call" : "Audio call",
-      detail: `${minutes} min ${seconds} sec`
-    });
-    renderConversation();
+  stopCallSound();
+
+  const video = $("#remoteVideo");
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+
+  $("#videoStage").classList.add("hidden");
+  $("#callScreen").classList.add("hidden");
+  $("#callAvatarWrap").classList.remove("hidden");
+
+  const startButton = $("#startVideoBtn");
+  if (startButton) startButton.remove();
+
+  if (state.localStream) {
+    state.localStream.getTracks().forEach(track => track.stop());
+    state.localStream = null;
   }
 
-  callStartedAt = 0;
+  const camera = $("#localCamera");
+  camera.srcObject = null;
+
+  $("#cameraPlaceholder").classList.remove("hidden");
+  camera.classList.add("hidden");
+
+  $("#bottomNav").classList.remove("hidden");
+
+  if (state.currentFriend) {
+    showScreen("conversationScreen");
+    renderMessages();
+  }
+
   showToast("Call ended");
 }
 
-$("#navUnread").textContent = "3";
+/* ---------- PROFILE PHOTO UPLOAD ---------- */
 
-// Initial render
-renderStories();
-renderChats();
-prepareImages();
+function handleProfileUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  if (!file.type.startsWith("image/")) {
+    showToast("Pumili ng image file.");
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    const image = reader.result;
+
+    $("#myProfileImage").src = image;
+
+    document.querySelectorAll(".brand-avatar").forEach(element => {
+      element.style.backgroundImage =
+        `url("${image}")`;
+      element.style.backgroundSize = "cover";
+      element.style.backgroundPosition = "center";
+    });
+
+    showToast("Na-update ang profile preview.");
+  };
+
+  reader.readAsDataURL(file);
+}
+
+/* ---------- BUTTONS & EVENTS ---------- */
+
+function bindEvents() {
+  $("#searchInput").addEventListener("input", event => {
+    renderFriends(event.target.value);
+  });
+
+  $("#messageForm").addEventListener("submit", sendMessage);
+
+  $("#backBtn").addEventListener("click", () => {
+    showScreen("chatListScreen");
+    renderFriends($("#searchInput").value);
+  });
+
+  $("#profileBackBtn").addEventListener("click", () => {
+    showScreen("chatListScreen");
+  });
+
+  $("#profileBtn").addEventListener("click", () => {
+    showScreen("profileScreen");
+  });
+
+  $("#menuProfileBtn").addEventListener("click", () => {
+    showScreen("profileScreen");
+  });
+
+  $("#newChatBtn").addEventListener("click", () => {
+    showToast("Pumili ng friend sa list para mag-chat.");
+    $("#searchInput").focus();
+  });
+
+  $("#audioCallBtn").addEventListener("click", () => {
+    openCallScreen("audio");
+  });
+
+  $("#videoCallBtn").addEventListener("click", () => {
+    openCallScreen("video");
+  });
+
+  $("#endCallBtn").addEventListener("click", endCall);
+
+  $("#minimizeCallBtn").addEventListener("click", () => {
+    $("#callScreen").classList.add("hidden");
+    $("#bottomNav").classList.remove("hidden");
+    showToast("Nakatago ang call screen. Active pa ang timer.");
+  });
+
+  $("#speakerBtn").addEventListener("click", toggleSpeaker);
+  $("#speakerControlBtn").addEventListener("click", toggleSpeaker);
+  $("#muteBtn").addEventListener("click", toggleMute);
+  $("#cameraToggleBtn").addEventListener("click", toggleCamera);
+  $("#videoToggleBtn").addEventListener("click", toggleRemoteVideo);
+
+  $("#myPhotoUpload").addEventListener("change", handleProfileUpload);
+
+  $("#emojiBtn").addEventListener("click", () => {
+    $("#messageInput").value += " 💜";
+    $("#messageInput").focus();
+  });
+
+  $("#attachBtn").addEventListener("click", () => {
+    $("#attachmentInput").click();
+  });
+
+  $("#attachmentInput").addEventListener("change", event => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("Pumili ng image file.");
+      return;
+    }
+
+    if (!state.currentFriend) {
+      showToast("Pumili muna ng friend.");
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      state.messages[state.currentFriend.id].push({
+        type: "text",
+        text: "📷 Image attached: " + file.name,
+        mine: true
+      });
+
+      renderMessages();
+      showToast("Naidagdag ang image message preview.");
+    };
+
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  });
+
+  document.querySelectorAll(".nav-item").forEach(button => {
+    button.addEventListener("click", () => {
+      showScreen(button.dataset.screen);
+    });
+  });
+
+  $("#menuSoundBtn").addEventListener("click", () => {
+    state.soundEnabled = !state.soundEnabled;
+
+    if (!state.soundEnabled) stopCallSound();
+
+    showToast(
+      state.soundEnabled
+        ? "Sound effects enabled"
+        : "Sound effects disabled"
+    );
+  });
+
+  $("#menuThemeBtn").addEventListener("click", () => {
+    state.glowEnabled = !state.glowEnabled;
+    document.body.classList.toggle(
+      "no-glow",
+      !state.glowEnabled
+    );
+    showToast(
+      state.glowEnabled ? "Glow enabled" : "Glow disabled"
+    );
+  });
+
+  // Stop camera and audio if the browser page is closed.
+  window.addEventListener("pagehide", () => {
+    clearInterval(state.callInterval);
+    clearTimeout(state.introTimeout);
+    stopCallSound();
+
+    if (state.localStream) {
+      state.localStream.getTracks().forEach(track => track.stop());
+    }
+  });
+}
+
+/* ---------- START APP ---------- */
+
+function initMessenger() {
+  renderFriends();
+  renderStories();
+  renderPeople();
+  bindEvents();
+
+  setImage($("#myProfileImage"), "john.jpg", "John Miras");
+
+  // Open the chat list immediately on startup.
+  showScreen("chatListScreen");
+
+  // Automatically opens the app in the Messenger home screen.
+  console.log("Messenger ni John Reynard is ready.");
+}
+
+document.addEventListener("DOMContentLoaded", initMessenger);
